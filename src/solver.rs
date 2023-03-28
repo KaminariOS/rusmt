@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 use smt2parser::concrete::{AttributeValue, Command, Identifier, Keyword, QualIdentifier, Symbol, Term};
 use smt2parser::Numeral;
 use crate::assertion_set::{and, AssertionSet, Clause, equality, implication, Literal, or, xor};
@@ -53,8 +53,8 @@ impl Solver {
 
                 match qual_identifier {
                     QualIdentifier::Simple { identifier: Identifier::Simple {symbol: Symbol(symbol)} } => {
-                        let mut args: Vec<Literal> = arguments.into_iter().map(|term| self.parse_term(term, clauses)).collect();
-                        let literal = Literal::new(get_id());
+                        let args: Vec<Literal> = arguments.into_iter().map(|term| self.parse_term(term, clauses)).collect();
+                        let _literal = Literal::new(get_id());
                         assert!(args.len() == 2 || (symbol == NOT && args.len() == 1));
                         match symbol.as_str() {
                             AND => {
@@ -108,8 +108,8 @@ impl Solver {
                 let id = self.get_symbol_id(symbol);
                 self.assertion_sets.last_mut().unwrap().add_uninterpreted_function(id, parameters, sort);
             }
-            Command::DeclareSort { symbol, arity } => {}
-            Command::DefineFun { sig, term } => {}
+            Command::DeclareSort { symbol: _, arity: _ } => {}
+            Command::DefineFun { sig: _, term: _ } => {}
             Command::DefineFunRec { .. } => {}
             Command::DefineFunsRec { .. } => {}
             Command::DefineSort { .. } => {}
@@ -181,7 +181,7 @@ impl Solver {
 
     fn process_assert(&mut self, term: Term) {
         match term {
-            Term::Constant(constant) => {
+            Term::Constant(_constant) => {
 
             }
             Term::QualIdentifier(_) => {}
@@ -199,7 +199,7 @@ impl Solver {
         // boolean
         match keyword.as_str() {
             PRINT_SUCCESS | PRODUCE_MODELS => {
-                let boolean = match value {
+                let _boolean = match value {
                     AttributeValue::Symbol(Symbol(sym)) => {
                         str_to_bool(&sym)
                     }

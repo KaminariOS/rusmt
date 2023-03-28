@@ -1,7 +1,7 @@
 use std::fs;
 use smt2parser::{CommandStream, concrete};
-use smt2parser::concrete::{AttributeValue, Command, Keyword, Symbol, Term};
-use rusmt::constants::*;
+
+
 use rusmt::Solver;
 
 fn main() {

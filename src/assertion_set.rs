@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::slice::Iter;
 use smt2parser::concrete::{Sort, Symbol};
 use crate::get_id;
 
@@ -10,8 +11,7 @@ struct Signature {
 pub(crate) struct AssertionSet {
     uninterpreted_functions: HashMap<usize, Signature>,
     symbol_table: HashMap<usize, Symbol>,
-    symbol_table_rev: HashMap<Symbol, usize>,
-    clauses: Vec<Clause>
+    symbol_table_rev: HashMap<Symbol, usize>, clauses: Vec<Clause>
 }
 
 impl AssertionSet {
@@ -20,7 +20,7 @@ impl AssertionSet {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct Clause {
     literals: Vec<Literal>
 }
@@ -99,6 +99,10 @@ impl AssertionSet {
         self.symbol_table.insert(id, symbol.clone());
         self.symbol_table_rev.insert(symbol, id);
     }
+
+    pub fn get_clauses(&self) -> Iter<Clause> {
+        self.clauses.iter()
+    }
 }
 
 impl Default for AssertionSet {
@@ -111,3 +115,31 @@ impl Default for AssertionSet {
         }
     }
 }
+
+struct SATSolver {
+   clauses: Vec<Clause>,
+
+}
+
+impl SATSolver {
+    fn bcp(&mut self) {
+
+    }
+
+    fn decide(&mut self) {
+
+    }
+
+    fn solve(&mut self) {
+        let mut assignments: HashSet<_> = self.clauses
+            .iter()
+            .map(|c| c.literals.iter())
+            .flatten()
+            .map(|l| l.id).collect();
+        let ids: Vec<_> = assignments.keys().map(|&k| k).collect();
+        let decisions = vec![HashMap::new()];
+    }
+}
+
+
+

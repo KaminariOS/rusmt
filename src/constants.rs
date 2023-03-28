@@ -1,4 +1,4 @@
-use smt2parser::concrete::Symbol;
+
 
 pub const PRINT_SUCCESS: &str = "print-success";
 pub const PRODUCE_MODELS: &str = "produce-models";
