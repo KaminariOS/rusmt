@@ -1,9 +1,9 @@
 pub mod constants;
 pub mod assertion_set;
+pub mod context;
 pub mod solver;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-pub use solver::Solver;
 
 fn get_id() -> usize {
     static COUNTER:AtomicUsize = AtomicUsize::new(1);

@@ -1,10 +1,9 @@
 use std::fs;
 use log::info;
 use smt2parser::{CommandStream, concrete};
-use rusmt::assertion_set::SATSolver;
 
-
-use rusmt::Solver;
+use rusmt::context::Context;
+use rusmt::solver::SATSolver;
 
 fn main() {
     pretty_env_logger::init();
@@ -14,7 +13,7 @@ fn main() {
         concrete::SyntaxBuilder,
         Some("optional/path/to/file".to_string()),
     );
-    let mut solver = Solver::default();
+    let mut solver = Context::default();
     let commands = stream.collect::<Result<Vec<_>, _>>().unwrap();
     solver.process_commands(commands);
     let mut sat_solver = SATSolver::new(solver.get_clauses());
