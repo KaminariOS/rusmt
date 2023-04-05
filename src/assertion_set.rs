@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Display, Formatter};
 use std::slice::Iter;
+use log::info;
 use smt2parser::concrete::{Sort, Symbol};
 use crate::get_id;
 
@@ -20,9 +22,15 @@ impl AssertionSet {
     }
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Clone)]
 pub struct Clause {
     literals: Vec<Literal>
+}
+
+impl Display for Clause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.literals)
+    }
 }
 
 impl Clause {
@@ -35,6 +43,17 @@ impl Clause {
 pub struct Literal {
     pub(crate) value: bool,
     pub(crate) id: usize
+}
+
+impl Debug for Literal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let s = if self.value {
+            ""
+        } else {
+            "^"
+        };
+        write!(f, "{}{}", s, self.id)
+    }
 }
 
 pub fn and(args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
@@ -116,9 +135,17 @@ impl Default for AssertionSet {
     }
 }
 
-struct SATSolver {
+type SolverID= usize;
+pub struct SATSolver {
+    ids: Vec<usize>,
    clauses: Vec<Clause>,
+    pub assignments: Vec<Option<bool>>,
+}
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum Res {
+    SAT,
+    UNSAT,
 }
 
 impl SATSolver {
@@ -130,14 +157,54 @@ impl SATSolver {
 
     }
 
-    fn solve(&mut self) {
-        let mut assignments: HashSet<_> = self.clauses
+    pub fn solve(&mut self) -> Res {
+        return self.solve_i(0)
+    }
+
+    pub fn solve_i(&mut self, cur: usize) -> Res {
+        if cur == self.assignments.len() {
+            return Res::SAT
+        }
+        self.assignments[cur] = Some(true);
+        if self.clauses.iter().any(|c| !self.check_clause(c)) {
+            return Res::UNSAT
+        }
+        let next = cur + 1;
+        if self.solve_i(next) == Res::SAT {
+            Res::SAT
+        } else {
+            self.assignments[cur] = Some(false);
+            return self.solve_i(next)
+        }
+    }
+
+    pub fn check_clause(&self, clause: &Clause) -> bool {
+        clause.literals.iter()
+            .any(|i| self.assignments[i.id]
+                .map(|a| a == i.value)
+                .unwrap_or(true))
+    }
+
+    pub fn new(mut clauses: Vec<Clause>) -> Self {
+        let mut assignments: HashSet<_> = clauses
             .iter()
             .map(|c| c.literals.iter())
             .flatten()
             .map(|l| l.id).collect();
-        let ids: Vec<_> = assignments.keys().map(|&k| k).collect();
-        let decisions = vec![HashMap::new()];
+
+        let mut ids: Vec<_> = assignments.into_iter().collect();
+        ids.sort();
+        let len = ids.len();
+        let id_to_rank: HashMap<_, _> = ids.iter().enumerate().map(|(rank, id)| (*id, rank)).collect();
+        clauses.iter_mut().map(|c| c.literals.iter_mut()).flatten().for_each(|l| {
+            l.id = *id_to_rank.get(&l.id).unwrap();
+        });
+        clauses.iter().for_each(|c| info!("{}", c));
+        Self {
+            ids,
+            clauses,
+            assignments: vec![None; len],
+        }
     }
 }
 

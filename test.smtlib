@@ -5,6 +5,6 @@
 (declare-fun p () Bool)
 (push 1)
 (pop 1)
-(assert (=> p (not p)))
+(assert (= p (not p)))
 (check-sat)
 (exit)

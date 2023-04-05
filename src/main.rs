@@ -1,10 +1,13 @@
 use std::fs;
+use log::info;
 use smt2parser::{CommandStream, concrete};
+use rusmt::assertion_set::SATSolver;
 
 
 use rusmt::Solver;
 
 fn main() {
+    pretty_env_logger::init();
     let input = fs::read("test.smtlib").unwrap();
     let stream = CommandStream::new(
         &input[..],
@@ -14,6 +17,9 @@ fn main() {
     let mut solver = Solver::default();
     let commands = stream.collect::<Result<Vec<_>, _>>().unwrap();
     solver.process_commands(commands);
+    let mut sat_solver = SATSolver::new(solver.get_clauses());
+    info!("res: {:?}", sat_solver.solve());
+    info!("assignment = {:?}", sat_solver.assignments);
 //     assert!(matches!(commands[..], [
 //     concrete::Command::Echo {..},
 //     concrete::Command::Exit,

@@ -214,6 +214,12 @@ impl Solver {
             _ => {unimplemented!()}
         }
     }
+
+    pub fn get_clauses(&self) -> Vec<Clause> {
+        self.assertion_sets.iter().map(|a| a.get_clauses()).flatten()
+            .map(Clone::clone)
+            .collect()
+    }
 }
 
 fn str_to_bool(sym: &str) -> bool {
