@@ -1,7 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, };
 use std::fmt::{Debug, Display, Formatter};
 use std::slice::Iter;
-use log::info;
 use smt2parser::concrete::{Sort, Symbol};
 use crate::get_id;
 
