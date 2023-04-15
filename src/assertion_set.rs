@@ -26,6 +26,7 @@ pub struct Clause {
     pub(crate) literals: Vec<Literal>
 }
 
+
 impl Display for Clause {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.literals)
@@ -36,9 +37,22 @@ impl Clause {
     pub fn new(literals: Vec<Literal>) -> Self {
         Self {literals}
     }
+    pub fn len(&self) -> usize {
+        self.literals.len()
+    }
+
+    pub fn display(&self, ids: &[usize]) -> Self {
+        let mut new = self.clone();
+        new.literals.iter_mut().for_each(|l| l.id = ids[l.id]);
+        new
+    }
+
+    pub fn dedup(&mut self) {
+        self.literals.dedup();
+    }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Literal {
     pub(crate) value: bool,
     pub(crate) id: usize

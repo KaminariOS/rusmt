@@ -2,12 +2,21 @@ use std::collections::{HashMap, HashSet};
 use std::mem;
 use log::info;
 use crate::assertion_set::{Clause, Literal};
-use crate::solver::Res::UNSAT;
+use crate::solver::Res::{SAT, UNSAT};
 
 pub struct SATSolver {
     ids: Vec<usize>,
     clauses: Vec<Clause>,
     pub assignments: Vec<Option<bool>>,
+}
+
+impl SATSolver {
+    pub fn get_assignments(&self) -> Vec<(usize, Option<bool>)> {
+        self.ids.iter()
+            .zip(self.assignments.iter())
+            .map(|a| (*a.0, *a.1) )
+            .collect()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,7 +64,7 @@ impl SATSolver {
 
     pub fn new(mut clauses: Vec<Clause>) -> Self {
         let (ids, clauses) = rename(clauses);
-        clauses.iter().for_each(|c| info!("{}", c));
+        clauses.iter().for_each(|c| info!("{}", c.display(&ids)));
         let len = ids.len();
         Self {
             ids,
@@ -74,13 +83,19 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
     let mut ids: Vec<_> = ids.into_iter().collect();
     ids.sort();
     let id_to_rank: HashMap<_, _> = ids.iter().enumerate().map(|(rank, id)| (*id, rank)).collect();
-    clauses.iter_mut().map(|c| c.literals.iter_mut()).flatten().for_each(|l| {
+    clauses.iter_mut().map(|c|
+                               {
+                                   c.dedup();
+                                   c.literals.iter_mut()
+                               }
+    ).flatten()
+        .for_each(|l| {
         l.id = *id_to_rank.get(&l.id).unwrap();
     });
-    clauses.iter().for_each(|c| info!("{}", c));
     (ids, clauses)
 }
 
+#[derive(Clone)]
 struct Assignment {
     value: bool,
     clause: Option<usize>,
@@ -95,12 +110,17 @@ impl Assignment {
             decision_level,
         }
     }
+
+    pub fn is_decision_node(&self) -> bool {
+        self.clause.is_none()
+    }
 }
 
-struct CDCLSolver {
+pub struct CDCLSolver {
     ids: Vec<usize>,
     clauses: Vec<Clause>,
     assignments: Vec<Option<Assignment>>,
+    decision_nodes: Vec<usize>
 }
 
 // pub fn preprocess(clauses: Vec<Clause>, assignments:&mut Vec<Option<Assignment>>) -> Vec<Clause> {
@@ -109,6 +129,19 @@ struct CDCLSolver {
 //         if clause
 //     }
 // }
+pub enum PropogationResult {
+    Unit(usize),
+    Conflict(usize)
+}
+
+impl CDCLSolver {
+    pub fn get_assignments(&self) -> Vec<(usize, Option<bool>)> {
+        self.ids.iter()
+            .zip(self.assignments.iter())
+            .map(|a| (*a.0, a.1.as_ref().map(|a| a.value)) )
+            .collect()
+    }
+}
 
 impl CDCLSolver {
     pub fn new(clause: Vec<Clause>) -> Self {
@@ -120,6 +153,7 @@ impl CDCLSolver {
             ids,
             clauses,
             assignments,
+            decision_nodes: vec![0],
         }
     }
 
@@ -128,46 +162,75 @@ impl CDCLSolver {
         let mut current_variable = 0;
         let total_variable = self.ids.len();
 
-        if let Some(core) = self.propagation(current_decision_level) {
-            return Res::UNSAT;
-        }
+        // if let Some(core) = self.propagation(current_decision_level) {
+        //     return Res::UNSAT;
+        // }
         while current_variable < total_variable {
             if self.assignments[current_variable].is_some() {
                 current_variable += 1;
                 continue;
             }
             current_decision_level += 1;
-            self.assignments[current_variable] = Some(Assignment::new(true, None, current_decision_level));
-            if let Some(core) = self.propagation(current_decision_level) {
-                let mut roots = vec![];
-                self.collect_roots(&mut roots, core);
-                let conflict_clause: Vec<_> = roots.iter().map(|&r|
-                    {
-                        Literal {
-                            value: !self.assignments[r].unwrap().value,
-                            id: r
+            self.decision_nodes.push(current_variable);
+            assert_eq!(self.decision_nodes.len(), current_decision_level + 1);
+            self.assignments[current_variable] = Some(Assignment::new(false, None, current_decision_level));
+            while let Some(res) = self.propagation(current_decision_level) {
+                match res {
+                    PropogationResult::Unit(_) => {
+                        info!("Unit")
+                    }
+                    PropogationResult::Conflict(core) => {
+                        let mut roots = vec![];
+                        self.collect_roots(&mut roots, core);
+                        roots.dedup();
+                        let conflict_clause: Vec<_> = roots.iter().map(|&r|
+                            {
+                                Literal {
+                                    value: !self.assignments[r].as_ref().unwrap().value,
+                                    id: r
+                                }
+                            }
+                        ).collect();
+                        self.clauses.push(Clause { literals: conflict_clause});
+                        let highest_level = roots.iter().map(|&r| self.assignments[r].as_ref().unwrap().decision_level).max().unwrap();
+                        let highest_conflict_decision = self.decision_nodes[highest_level];
+                        {
+                            let decision_node = self.assignments[self.decision_nodes[highest_conflict_decision]].as_mut().unwrap();
+                            if decision_node.value {
+                                if highest_level == 1 {
+                                    return UNSAT
+                                } else {
+                                    current_decision_level = highest_level - 1;
+                                }
+                            } else {
+                                decision_node.value = true;
+                                current_decision_level = highest_level;
+                            }
                         }
+                        self.assignments
+                            .iter_mut()
+                            .filter(|a|
+                                a.as_ref().filter(
+                                |assignment| assignment.decision_level >= current_decision_level && !assignment.is_decision_node()
+                            ).is_some())
+                            .for_each(|a| *a = None );
                     }
-                ).collect();
-                self.clauses.push(Clause { literals: conflict_clause});
-                let highest_level = roots.iter().map(|&r| self.assignments[r].unwrap().decision_level).max().unwrap();
-                self.assignments.iter_mut().for_each(|x| {
-                    if x.filter(|a| a.decision_level >= highest_level) {
-                        *x = None;
-                    }
-                } );
-                current_decision_level = highest_level - 1;
+                }
+
             }
 
         }
-        Res::UNSAT
+        SAT
     }
 
     pub fn collect_roots(&self, roots: &mut Vec<usize>, clause: usize) {
         let next: Vec<_> = self.clauses[clause].literals.iter().filter_map(|l|
             {
                 if let Some(c) = self.assignments[l.id].as_ref().unwrap().clause {
-                    Some(c)
+                    if c != clause {
+
+                        Some(c)
+                    } else {None}
                 } else {
                     roots.push(l.id);
                     None
@@ -178,32 +241,37 @@ impl CDCLSolver {
         next.into_iter().for_each(|n| self.collect_roots(roots, n));
     }
 
-    pub fn propagation(&mut self, decision_level: usize) -> Option<usize> {
+    pub fn propagation(&mut self, decision_level: usize) -> Option<PropogationResult> {
         let c_len = self.clauses.len();
-        for index in 0..clauses.len() {
-            let conflict = self.clauses[index].literals.iter()
+        for index in 0..self.clauses.len() {
+            let conflict = !self.clauses[index].literals.iter()
                 .any(|i|
                     self.assignments[i.id]
-                    .map(|a| a == i.value)
+                        .as_ref()
+                    .map(|a| a.value == i.value)
                         .unwrap_or(true)
                 );
             if conflict {
-                return Some(index)
+                return Some(PropogationResult::Conflict(index))
             } else {
                 let unresolved: Vec<_> = self.clauses[index].literals
                     .iter()
                     .filter(|l| self.assignments[l.id].is_none()).collect();
-                if unresolved.len() == 1 {
+
+                let diff: Vec<_> = self.clauses[index].literals
+                    .iter()
+                    .filter_map(|l| self.assignments[l.id].as_ref().filter(|a| a.value != l.value))
+                    .collect();
+                // .filter(|l| l.value != ).collect();
+                if unresolved.len() == 1 && diff.len() + 1 == self.clauses[index].len() {
                     let id = unresolved[0].id;
                     let value = unresolved[0].value;
-                    mem::drop(unresolved);
                     self.assignments[id] = Some(Assignment::new(value, Some(index), decision_level));
-                    return self.propagation(decision_level)
+                    return Some(PropogationResult::Unit(id))
                 }
             }
         }
         None
     }
-
 }
 
