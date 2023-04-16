@@ -39,19 +39,22 @@ impl SATSolver {
         if cur == self.assignments.len() {
             return SAT
         }
-        self.assignments[cur] = Some(true);
-        let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
-        let next = cur + 1;
-        if no_conflict && self.solve_i(next) == SAT  {
-           return  SAT
-        }
         self.assignments[cur] = Some(false);
         let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
-        if no_conflict {
-            self.solve_i(next)
+        let next = cur + 1;
+        let res = if no_conflict && self.solve_i(next) == SAT  {
+           SAT
         } else {
-            UNSAT
-        }
+            self.assignments[cur] = Some(true);
+            let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
+            if no_conflict {
+                self.solve_i(next)
+            } else {
+                UNSAT
+            }
+        };
+        self.assignments[cur] = None;
+        res
     }
 
     pub fn check_clause(&self, clause: &Clause) -> bool {
