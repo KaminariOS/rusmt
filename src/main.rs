@@ -24,17 +24,17 @@ fn main() {
         Solver::BRUTE => {
             let mut sat_solver = SATSolver::new(context.get_clauses());
             println!("res: {}", sat_solver.solve());
-            info!("assignment = {:?}",
-        sat_solver.get_assignments()
-            );
+            // info!("assignment = {:?};", sat_solver.get_assignments()
+            // );
         }
         Solver::CDCL => {
             let mut cdcl_solver = CDCLSolver::new(context.get_clauses());
 
             println!("res: {}", cdcl_solver.solve());
-            info!("assignment = {:?}",
-            cdcl_solver.get_assignments()
-    );
+            info!("Clauses length: {}", cdcl_solver.clauses.len());
+            // info!("assignment = {:?}",
+    //         cdcl_solver.get_assignments()
+    // );
         }
     }
 

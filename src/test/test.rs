@@ -23,7 +23,7 @@ fn test() {
     }
     let generator = Generator {
         variables: 100,
-        clauses: 800,
+        clauses: 1000,
     };
     let test_file = "random.smtlib";
     generator.generate(test_file);
@@ -38,7 +38,7 @@ fn test() {
         .expect("failed to execute process");
     let time = print_duration(start);
     let txt = std::str::from_utf8(&output.stdout).unwrap();
-    let report = format!("time: {}\n {}", time, txt);
+    let report = format!("{}\n {}", time, txt);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
 
@@ -50,7 +50,7 @@ fn test() {
         .expect("failed to execute process");
     let time = print_duration(start);
     let txt = std::str::from_utf8(&output.stdout).unwrap();
-    let report = format!("time: {}\n {}", time, txt);
+    let report = format!("{}\n {}", time, txt);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
 
@@ -61,7 +61,7 @@ fn test() {
         .expect("failed to execute process");
     let time = print_duration(start);
     let txt = format!("Using solver: {}\nres: {}", "z3", std::str::from_utf8(&output.stdout).unwrap());
-    let report = format!("time: {}\n {}", time, txt);
+    let report = format!("{}\n {}", time, txt);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
 }

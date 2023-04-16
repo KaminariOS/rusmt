@@ -43,10 +43,14 @@ impl SATSolver {
         let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
         let next = cur + 1;
         if no_conflict && self.solve_i(next) == SAT  {
-            SAT
+           return  SAT
+        }
+        self.assignments[cur] = Some(false);
+        let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
+        if no_conflict {
+            self.solve_i(next)
         } else {
-            self.assignments[cur] = Some(false);
-            return self.solve_i(next)
+            UNSAT
         }
     }
 
@@ -113,7 +117,7 @@ impl Assignment {
 
 pub struct CDCLSolver {
     ids: Vec<usize>,
-    clauses: Vec<Clause>,
+    pub clauses: Vec<Clause>,
     assignments: Vec<Option<Assignment>>,
     decision_nodes: Vec<usize>
 }
