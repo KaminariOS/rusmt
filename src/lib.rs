@@ -2,6 +2,9 @@ pub mod constants;
 pub mod assertion_set;
 pub mod context;
 pub mod solver;
+pub mod cli;
+#[cfg(test)]
+mod test;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 

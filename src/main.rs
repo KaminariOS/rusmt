@@ -1,13 +1,16 @@
 use std::fs;
 use log::info;
 use smt2parser::{CommandStream, concrete};
+use rusmt::cli::{Cli, Solver};
 
+use clap::Parser;
 use rusmt::context::Context;
 use rusmt::solver::{CDCLSolver, SATSolver};
 
 fn main() {
     pretty_env_logger::init();
-    let input = fs::read("test.smtlib").unwrap();
+    let args = Cli::parse();
+    let input = fs::read(args.path).unwrap();
     let stream = CommandStream::new(
         &input[..],
         concrete::SyntaxBuilder,
@@ -16,18 +19,25 @@ fn main() {
     let mut context = Context::default();
     let commands = stream.collect::<Result<Vec<_>, _>>().unwrap();
     context.process_commands(commands);
-    let mut sat_solver = SATSolver::new(context.get_clauses());
-
-    info!("res: {:?}", sat_solver.solve());
-    info!("assignment = {:?}",
+    println!("Using solver: {}", args.solver.as_ref());
+    match args.solver {
+        Solver::BRUTE => {
+            let mut sat_solver = SATSolver::new(context.get_clauses());
+            println!("res: {}", sat_solver.solve());
+            info!("assignment = {:?}",
         sat_solver.get_assignments()
-    );
-    let mut cdcl_solver = CDCLSolver::new(context.get_clauses());
+            );
+        }
+        Solver::CDCL => {
+            let mut cdcl_solver = CDCLSolver::new(context.get_clauses());
 
-    info!("res: {:?}", cdcl_solver.solve());
-    info!("assignment = {:?}",
-        cdcl_solver.get_assignments()
+            println!("res: {}", cdcl_solver.solve());
+            info!("assignment = {:?}",
+            cdcl_solver.get_assignments()
     );
+        }
+    }
+
 //     assert!(matches!(commands[..], [
 //     concrete::Command::Echo {..},
 //     concrete::Command::Exit,

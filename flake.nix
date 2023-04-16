@@ -53,6 +53,7 @@ devShell = pkgs.mkShell rec {
 #    xorg.libXi
 #    xorg.libXrandr
 #    gcc-unwrapped.lib
+    z3
   ];
 
 

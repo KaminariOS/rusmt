@@ -148,7 +148,6 @@ impl Default for AssertionSet {
     }
 }
 
-type SolverID= usize;
 
 
 

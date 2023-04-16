@@ -179,21 +179,6 @@ impl Context {
         id
     }
 
-    fn process_assert(&mut self, term: Term) {
-        match term {
-            Term::Constant(_constant) => {
-
-            }
-            Term::QualIdentifier(_) => {}
-            Term::Application { .. } => {}
-            Term::Let { .. } => {}
-            Term::Forall { .. } => {}
-            Term::Exists { .. } => {}
-            Term::Match { .. } => {}
-            Term::Attributes { .. } => {}
-        }
-    }
-
     fn set_option(&mut self, keyword: Keyword, value: AttributeValue) {
         let Keyword(keyword) = keyword;
         // boolean

@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::mem;
+use itertools::Itertools;
 use log::info;
 use crate::assertion_set::{Clause, Literal};
 use crate::solver::Res::{SAT, UNSAT};
@@ -18,21 +18,18 @@ impl SATSolver {
             .collect()
     }
 }
-
-#[derive(Debug, PartialEq, Eq)]
+use strum_macros::Display;
+#[derive(PartialEq, Eq)]
+#[derive(Display)]
+// If we don't care about inner capitals, we don't need to set `serialize_all`
+// and can leave parenthesis empty.
+#[strum(serialize_all = "snake_case")]
 pub enum Res {
     SAT,
     UNSAT,
 }
 
 impl SATSolver {
-    fn bcp(&mut self) {
-
-    }
-
-    fn decide(&mut self) {
-
-    }
 
     pub fn solve(&mut self) -> Res {
         return self.solve_i(0)
@@ -40,15 +37,13 @@ impl SATSolver {
 
     pub fn solve_i(&mut self, cur: usize) -> Res {
         if cur == self.assignments.len() {
-            return Res::SAT
+            return SAT
         }
         self.assignments[cur] = Some(true);
-        if self.clauses.iter().any(|c| !self.check_clause(c)) {
-            return Res::UNSAT
-        }
+        let no_conflict = self.clauses.iter().all(|c| self.check_clause(c));
         let next = cur + 1;
-        if self.solve_i(next) == Res::SAT {
-            Res::SAT
+        if no_conflict && self.solve_i(next) == SAT  {
+            SAT
         } else {
             self.assignments[cur] = Some(false);
             return self.solve_i(next)
@@ -62,7 +57,7 @@ impl SATSolver {
                 .unwrap_or(true))
     }
 
-    pub fn new(mut clauses: Vec<Clause>) -> Self {
+    pub fn new(clauses: Vec<Clause>) -> Self {
         let (ids, clauses) = rename(clauses);
         clauses.iter().for_each(|c| info!("{}", c.display(&ids)));
         let len = ids.len();
@@ -95,7 +90,7 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
     (ids, clauses)
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 struct Assignment {
     value: bool,
     clause: Option<usize>,
@@ -147,7 +142,7 @@ impl CDCLSolver {
     pub fn new(clause: Vec<Clause>) -> Self {
         let (ids, clauses) = rename(clause);
         let len = ids.len();
-        let mut assignments= vec![None; len];
+        let assignments= vec![None; len];
         // let clauses = preprocess(clauses, &mut assignments);
         Self {
             ids,
@@ -176,10 +171,11 @@ impl CDCLSolver {
             self.assignments[current_variable] = Some(Assignment::new(false, None, current_decision_level));
             while let Some(res) = self.propagation(current_decision_level) {
                 match res {
-                    PropogationResult::Unit(_) => {
-                        info!("Unit")
+                    PropogationResult::Unit(id) => {
+                        info!("Unit: {}; level: {}", id, current_decision_level)
                     }
                     PropogationResult::Conflict(core) => {
+                        info!("conflict: {}; len: {}", core, self.clauses.len());
                         let mut roots = vec![];
                         self.collect_roots(&mut roots, core);
                         roots.dedup();
@@ -192,28 +188,48 @@ impl CDCLSolver {
                             }
                         ).collect();
                         self.clauses.push(Clause { literals: conflict_clause});
-                        let highest_level = roots.iter().map(|&r| self.assignments[r].as_ref().unwrap().decision_level).max().unwrap();
-                        let highest_conflict_decision = self.decision_nodes[highest_level];
-                        {
-                            let decision_node = self.assignments[self.decision_nodes[highest_conflict_decision]].as_mut().unwrap();
-                            if decision_node.value {
-                                if highest_level == 1 {
-                                    return UNSAT
-                                } else {
-                                    current_decision_level = highest_level - 1;
-                                }
-                            } else {
-                                decision_node.value = true;
-                                current_decision_level = highest_level;
+                        let mut root_levels: Vec<_> = roots.iter().map(|&r| self.assignments[r].as_ref().unwrap().decision_level).collect();
+                        root_levels.sort();
+                        let mut backtrack_decision_level = None;
+                        while let Some(highest_level) = root_levels.pop() {
+                            let highest_conflict_decision = self.decision_nodes[highest_level];
+                            let decision_node = self.assignments[highest_conflict_decision].as_mut().unwrap();
+                            if !decision_node.value {
+                                backtrack_decision_level = Some(highest_level);
+                                break;
                             }
                         }
+                        if let Some(back) = backtrack_decision_level {
+                            current_decision_level = back;
+                        } else {
+                            return UNSAT
+                        }
+                        // {
+                        //     info!("Decision node: {:?}", decision_node);
+                        //     if decision_node.value {
+                        //         if highest_level == 1 {
+                        //             return UNSAT
+                        //         } else {
+                        //             current_decision_level = highest_level - 1;
+                        //         }
+                        //     } else {
+                        //         decision_node.value = true;
+                        //         current_decision_level = highest_level;
+                        //     }
+                        // }
                         self.assignments
                             .iter_mut()
                             .filter(|a|
                                 a.as_ref().filter(
-                                |assignment| assignment.decision_level >= current_decision_level && !assignment.is_decision_node()
+                                |assignment| assignment.decision_level >= current_decision_level
                             ).is_some())
                             .for_each(|a| *a = None );
+                        self.assignments[self.decision_nodes[current_decision_level]] = Some(Assignment{
+                            value: true,
+                            clause: None,
+                            decision_level: current_decision_level,
+                        });
+                        self.decision_nodes = self.decision_nodes[0..=current_decision_level].to_vec();
                     }
                 }
 
@@ -243,7 +259,7 @@ impl CDCLSolver {
 
     pub fn propagation(&mut self, decision_level: usize) -> Option<PropogationResult> {
         let c_len = self.clauses.len();
-        for index in 0..self.clauses.len() {
+        for index in 0..c_len {
             let conflict = !self.clauses[index].literals.iter()
                 .any(|i|
                     self.assignments[i.id]
@@ -261,6 +277,7 @@ impl CDCLSolver {
                 let diff: Vec<_> = self.clauses[index].literals
                     .iter()
                     .filter_map(|l| self.assignments[l.id].as_ref().filter(|a| a.value != l.value))
+                    .dedup()
                     .collect();
                 // .filter(|l| l.value != ).collect();
                 if unresolved.len() == 1 && diff.len() + 1 == self.clauses[index].len() {
