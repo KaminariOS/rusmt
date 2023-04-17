@@ -226,7 +226,8 @@ impl CDCLSolver {
                     PropogationResult::Conflict(core) => {
                         info!("conflict: {}; len: {}", core, self.clauses.len());
                         let mut roots = HashSet::new();
-                        self.collect_roots(&mut roots, core);
+                        let mut visited = HashSet::new();
+                        self.collect_roots(&mut roots, core, &mut visited);
                         let conflict_clause: Vec<_> = roots
                             .iter()
                             .map(|&r| Literal {
@@ -290,15 +291,15 @@ impl CDCLSolver {
         SAT
     }
 
-    pub fn collect_roots(&self, roots: &mut HashSet<usize>, clause: usize) {
+    pub fn collect_roots(&self, roots: &mut HashSet<usize>, clause: usize, visited: &mut HashSet<usize>){
+        if visited.contains(&clause) {
+            return;
+        }
         let next: Vec<_> = self.clauses[clause]
             .literals
             .iter()
             .filter_map(|l| {
-                if roots.contains(&l.id) {
-                    None
-                }
-                else if let Some(c) = self.assignments[&l.id].clause {
+                 if let Some(c) = self.assignments[&l.id].clause {
                     if c != clause {
                         Some(c)
                     } else {
@@ -310,8 +311,8 @@ impl CDCLSolver {
                 }
             })
             .collect();
-
-        next.into_iter().for_each(|n| self.collect_roots(roots, n));
+        visited.insert(clause);
+        next.into_iter().for_each(|n| self.collect_roots(roots, n, visited));
     }
 
     pub fn propagation(&mut self) -> PropogationResult {
