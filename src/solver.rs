@@ -20,7 +20,7 @@ impl SATSolver {
     }
 }
 use strum_macros::{AsRefStr, Display};
-#[derive(PartialEq, Eq, Display, AsRefStr)]
+#[derive(PartialEq, Eq, Display, AsRefStr, Copy, Clone)]
 // If we don't care about inner capitals, we don't need to set `serialize_all`
 // and can leave parenthesis empty.
 #[strum(serialize_all = "snake_case")]
@@ -65,7 +65,7 @@ impl SATSolver {
 
     pub fn new(clauses: Vec<Clause>) -> Self {
         let (ids, clauses) = rename(clauses);
-        clauses.iter().for_each(|c| info!("{}", c.display(&ids)));
+        // clauses.iter().for_each(|c| info!("{}", c.display(&ids)));
         let len = ids.len();
         Self {
             ids,
@@ -131,6 +131,7 @@ pub struct CDCLSolver {
     assignments: HashMap<usize, Assignment>,
     decision_nodes: Vec<usize>,
     frequency: HashMap<Literal, usize>,
+    res: Option<Res>,
 }
 
 // pub fn preprocess(clauses: Vec<Clause>, assignments:&mut Vec<Option<Assignment>>) -> Vec<Clause> {
@@ -139,11 +140,6 @@ pub struct CDCLSolver {
 //         if clause
 //     }
 // }
-#[derive(Debug)]
-pub enum PropogationResult {
-    Unit(Vec<(Literal, usize)>),
-    Conflict(usize),
-}
 
 impl CDCLSolver {
     pub fn get_assignments(&self) -> Vec<(usize, bool)> {
@@ -155,9 +151,140 @@ impl CDCLSolver {
     }
 }
 
+// pub fn preprocess(clauses: Vec<Clause>) -> Option<Vec<Clause>> {
+//     let mut assignments = HashMap::new();
+//     loop {
+//         let len = clauses.len();
+//         let mut new_clauses = Vec::with_capacity(len);
+//         for clause in clauses {
+//             if clause.literals.len() == 1 {
+//
+//             }
+//         }
+//     }
+// }
+
+pub fn find_contradiction(clauses: &[Clause]) -> Option<Res> {
+    let mut res = if clauses.iter().any(|c|
+        {
+            c.len() == 2 && c.literals.iter().any(|l| c.literals.contains(&l.not()))
+        }
+    ) {
+        Some(UNSAT)
+    } else {None};
+    if res.is_none() {
+        let set: HashSet<_> = clauses.iter()
+            .filter(|c| c.len() == 1)
+            .map(|c| c.literals.iter())
+            .flatten()
+            .collect();
+         if set.iter().any(|l| set.contains(&l.not())) {
+            res = Some(UNSAT)
+        }
+    }
+    res
+}
+
+pub fn remove_unary(mut clauses: Vec<Clause>) -> (Option<Res>, Vec<Clause>) {
+    let mut assignments: HashMap<usize, bool> = HashMap::new();
+    loop {
+        let res = find_contradiction(&clauses);
+        if res.is_some() {
+            return (res, vec![])
+        }
+        let (unarys, non_unary): (Vec<_>, Vec<_>) = clauses
+            .into_iter().partition(|c| c.len() == 1);
+
+        unarys.iter().map(|c|
+           c.literals.iter()
+        ).flatten().for_each(|l| {
+            assert!(!assignments.contains_key(&l.id));
+            assignments.insert(l.id, l.value);
+        });
+        clauses = non_unary.into_iter().filter_map(|mut c|
+            {
+                let mut literals = HashSet::new();
+                for l in &c.literals {
+                if let Some(&value) = assignments.get(&l.id) {
+                    if l.value == value {
+                        return None
+                    }
+                } else {
+                    literals.insert(*l);
+                }
+            }
+                if literals.is_empty() {
+                    None
+                } else {
+                    c.literals = literals;
+                    Some(c)
+                }
+            }
+        ).collect();
+        if unarys.is_empty() {
+            return (res, clauses)
+        }
+
+    }
+}
+
+pub fn watch_map(clauses: &Vec<Clause>) -> HashMap<Literal, HashSet<usize>> {
+    let mut map: HashMap<Literal, HashSet<usize>>  = HashMap::new();
+    clauses.iter().enumerate().for_each(|(i, c)|
+        {
+            c.literals.iter().for_each(|l| {
+                map.entry(*l).or_default().insert(i);
+            })
+        }
+    );
+    map
+}
+
+fn minimize_cur_clauses(clauses: &[Clause], watch_map: &HashMap<Literal, HashSet<usize>>) -> Vec<Clause> {
+    clauses.iter().filter_map(|c| {
+        let new_c = clause_minimization(c.clone(), clauses, watch_map);
+        if new_c.literals.is_empty() {
+            None
+        } else {
+            Some(new_c)
+        }
+    }).collect()
+}
+
+fn clause_minimization(mut clause: Clause, clauses: &[Clause],
+                       watch_map: &HashMap<Literal, HashSet<usize>>,
+) -> Clause {
+    let mut removable = HashSet::with_capacity(clause.len());
+    for l in clause.literals.iter() {
+        let not_l = l.not();
+        if let Some(map) = watch_map.get(&not_l) {
+            for &c_index in map {
+                let c = &clauses[c_index];
+                if c.literals.iter()
+                    .filter(|&&nl| nl != not_l)
+                    .all(|nl| clause.literals.contains(nl)) {
+                    removable.insert(*l);
+                    break;
+                }
+            }
+        }
+    }
+    // info!("C_len: {}; removable len: {}", clause.len(), removable.len());
+    clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
+    clause
+}
+
 impl CDCLSolver {
-    pub fn new(clause: Vec<Clause>) -> Self {
-        let (ids, clauses) = rename(clause);
+    pub fn new(clauses: Vec<Clause>) -> Self {
+        info!("Initial clauses: {}", clauses.len());
+        let (res, mut clauses) = remove_unary(clauses);
+        let (ids, mut clauses) = rename(clauses);
+        info!("Clauses after removing unary: {}", clauses.len());
+        if res.is_none() {
+            let watch_list = watch_map(&clauses);
+            clauses = minimize_cur_clauses(&clauses, &watch_list);
+            info!("Clauses after minimization: {}", clauses.len());
+        }
         let len = ids.len();
         let assignments = HashMap::with_capacity(len);
         let mut frequency: HashMap<Literal, usize> = HashMap::with_capacity(len);
@@ -174,6 +301,7 @@ impl CDCLSolver {
             assignments,
             decision_nodes: vec![0],
             frequency,
+            res,
         }
     }
 
@@ -192,37 +320,16 @@ impl CDCLSolver {
         None
     }
 
-    fn minimize_cur_clause(&mut self) {
-        self.clauses = self.clauses.iter().filter_map(|c| {
-            let new_c = self.clause_minimization(c.clone());
-            if new_c.literals.is_empty() {
-                None
-            } else {
-               Some(new_c)
-            }
-        }).collect();
-    }
 
-    fn clause_minimization(&self, mut clause: Clause) -> Clause {
-        let mut removable = HashSet::with_capacity(clause.len());
-       for l in clause.literals.iter() {
-           let not_l = l.not();
-          for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
-              if c.literals.iter()
-                  .filter(|&&nl| nl != not_l)
-                  .all(|nl| clause.literals.contains(nl)) {
-                  removable.insert(*l);
-                  break;
-              }
-          }
-       }
-        clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
-        clause
-    }
+
+
 
     pub fn solve(&mut self) -> Res {
         // self.minimize_cur_clause();
         // self.clauses = self.clauses.iter().unique().collect();
+        if let Some(res) = &self.res {
+            return *res
+        }
         let mut current_decision_level = 0;
 
         while let Some(cur) = self.get_next() {
