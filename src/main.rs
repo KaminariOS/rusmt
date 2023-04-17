@@ -1,7 +1,7 @@
-use std::fs;
 use log::info;
-use smt2parser::{CommandStream, concrete};
 use rusmt::cli::{Cli, Solver};
+use smt2parser::{concrete, CommandStream};
+use std::fs;
 
 use clap::Parser;
 use rusmt::context::Context;
@@ -33,14 +33,14 @@ fn main() {
             println!("{}", cdcl_solver.solve());
             info!("Clauses length: {}", cdcl_solver.clauses.len());
             // info!("assignment = {:?}",
-    //         cdcl_solver.get_assignments()
-    // );
+            //         cdcl_solver.get_assignments()
+            // );
         }
     }
 
-//     assert!(matches!(commands[..], [
-//     concrete::Command::Echo {..},
-//     concrete::Command::Exit,
-// ]));
-//     assert_eq!(commands[0].to_string(), "(echo \"Hello world!\")");
+    //     assert!(matches!(commands[..], [
+    //     concrete::Command::Echo {..},
+    //     concrete::Command::Exit,
+    // ]));
+    //     assert_eq!(commands[0].to_string(), "(echo \"Hello world!\")");
 }

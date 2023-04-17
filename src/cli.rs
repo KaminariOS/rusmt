@@ -14,5 +14,5 @@ pub struct Cli {
 #[derive(EnumString, AsRefStr)]
 pub enum Solver {
     BRUTE,
-    CDCL
+    CDCL,
 }

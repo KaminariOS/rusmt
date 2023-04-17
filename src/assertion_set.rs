@@ -1,18 +1,19 @@
-use std::collections::{HashMap, };
+use crate::get_id;
+use smt2parser::concrete::{Sort, Symbol};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::slice::Iter;
-use smt2parser::concrete::{Sort, Symbol};
-use crate::get_id;
 
 struct Signature {
     parameters: Vec<Sort>,
-    result: Sort
+    result: Sort,
 }
 
 pub(crate) struct AssertionSet {
     uninterpreted_functions: HashMap<usize, Signature>,
     symbol_table: HashMap<usize, Symbol>,
-    symbol_table_rev: HashMap<Symbol, usize>, clauses: Vec<Clause>
+    symbol_table_rev: HashMap<Symbol, usize>,
+    clauses: Vec<Clause>,
 }
 
 impl AssertionSet {
@@ -23,9 +24,8 @@ impl AssertionSet {
 
 #[derive(Default, Clone)]
 pub struct Clause {
-    pub(crate) literals: Vec<Literal>
+    pub(crate) literals: Vec<Literal>,
 }
-
 
 impl Display for Clause {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -35,7 +35,7 @@ impl Display for Clause {
 
 impl Clause {
     pub fn new(literals: Vec<Literal>) -> Self {
-        Self {literals}
+        Self { literals }
     }
     pub fn len(&self) -> usize {
         self.literals.len()
@@ -55,26 +55,22 @@ impl Clause {
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Literal {
     pub(crate) value: bool,
-    pub(crate) id: usize
+    pub(crate) id: usize,
 }
 
 impl Debug for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = if self.value {
-            ""
-        } else {
-            "^"
-        };
+        let s = if self.value { "" } else { "^" };
         write!(f, "{}{}", s, self.id)
     }
 }
 
 pub fn and(args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
     let literal = Literal::new(get_id());
-    args.into_iter().for_each(|l| clauses.push(Clause::new(vec![literal.not(), l])));
+    args.into_iter()
+        .for_each(|l| clauses.push(Clause::new(vec![literal.not(), l])));
     literal
 }
-
 
 pub fn implication(args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
     let literal = Literal::new(get_id());
@@ -88,7 +84,6 @@ pub fn equality(args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
     and(vec![forward, backward], clauses)
 }
 
-
 pub fn xor(mut args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
     args[0] = args[0].not();
     equality(args, clauses)
@@ -101,25 +96,27 @@ pub fn or(mut args: Vec<Literal>, clauses: &mut Vec<Clause>) -> Literal {
     literal
 }
 
-
 impl Literal {
     pub fn new(id: usize) -> Self {
-        Self {
-            value: true,
-            id
-        }
+        Self { value: true, id }
     }
     pub fn not(&self) -> Self {
         Self {
             value: !self.value,
-            id: self.id
+            id: self.id,
         }
     }
 }
 
 impl AssertionSet {
-    pub fn add_uninterpreted_function(&mut self, symbol_id: usize, parameters: Vec<Sort>, result: Sort) {
-        self.uninterpreted_functions.insert(symbol_id, Signature {parameters, result});
+    pub fn add_uninterpreted_function(
+        &mut self,
+        symbol_id: usize,
+        parameters: Vec<Sort>,
+        result: Sort,
+    ) {
+        self.uninterpreted_functions
+            .insert(symbol_id, Signature { parameters, result });
     }
 
     pub fn get_id(&self, symbol: &Symbol) -> Option<usize> {
@@ -127,7 +124,9 @@ impl AssertionSet {
     }
 
     pub fn set_id(&mut self, symbol: Symbol, id: usize) {
-        assert!(!self.symbol_table.contains_key(&id) && !self.symbol_table_rev.contains_key(&symbol));
+        assert!(
+            !self.symbol_table.contains_key(&id) && !self.symbol_table_rev.contains_key(&symbol)
+        );
         self.symbol_table.insert(id, symbol.clone());
         self.symbol_table_rev.insert(symbol, id);
     }
@@ -147,8 +146,3 @@ impl Default for AssertionSet {
         }
     }
 }
-
-
-
-
-

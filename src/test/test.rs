@@ -1,9 +1,9 @@
+use crate::solver::Res;
+use crate::test::generator::Generator;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use std::time::{Instant};
-use crate::solver::Res;
-use crate::test::generator::Generator;
+use std::time::Instant;
 
 fn print_duration(time: Instant) -> String {
     let seconds = time.elapsed().as_secs_f32();
@@ -19,7 +19,9 @@ fn test() {
     if !Command::new("cargo")
         .args(["build", "--release"])
         .status()
-        .unwrap().success() {
+        .unwrap()
+        .success()
+    {
         eprintln!("Build failure.");
     }
     let generator = Generator {
@@ -67,7 +69,7 @@ fn test() {
     let report = format!("{}\n {}", time, txt);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
-    let unsat= Res::UNSAT.as_ref();
+    let unsat = Res::UNSAT.as_ref();
     if output_z3.contains(unsat) != output_cdcl.contains(unsat) {
         panic!("Incorrect.")
     }
