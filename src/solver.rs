@@ -79,8 +79,8 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
         .iter()
         .map(|c| c.literals.iter())
         .flatten()
-        .dedup()
         .map(|l| l.id)
+        .unique()
         .collect();
 
     ids.sort();
@@ -104,7 +104,7 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
     (ids, clauses)
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Hash, Eq)]
 struct Assignment {
     value: bool,
     clause: Option<usize>,
@@ -166,6 +166,7 @@ impl CDCLSolver {
             .map(|c| c.literals.iter())
             .flatten()
             .for_each(|l| *frequency.entry(*l).or_default() += 1);
+        println!("ids: {}; freq: {}", ids.len(), frequency.len());
         // let clauses = preprocess(clauses, &mut assignments);
         Self {
             ids,
@@ -182,7 +183,7 @@ impl CDCLSolver {
 
     pub fn get_next(&self) -> Option<Literal> {
         let mut freq: Vec<_> = self.frequency.iter().collect();
-        freq.sort_by_key(|x| x.1);
+        freq.sort_by_key(|x| (x.1, x.0.id, x.0.value));
         while let Some((l, _)) = freq.pop() {
             if !self.assignments.contains_key(&l.id) {
                 return Some(*l);
@@ -203,24 +204,25 @@ impl CDCLSolver {
     }
 
     fn clause_minimization(&self, mut clause: Clause) -> Clause {
-        let mut removable = HashSet::with_capacity(clause.len());
-       for l in clause.literals.iter() {
-           let not_l = l.not();
-          for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
-              if c.literals.iter()
-                  .filter(|&&nl| nl != not_l)
-                  .all(|nl| clause.literals.contains(nl)) {
-                  removable.insert(*l);
-                  break;
-              }
-          }
-       }
-        clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
+       //  let mut removable = HashSet::with_capacity(clause.len());
+       // for l in clause.literals.iter() {
+       //     let not_l = l.not();
+       //    for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
+       //        if c.literals.iter()
+       //            .filter(|&&nl| nl != not_l)
+       //            .all(|nl| clause.literals.contains(nl)) {
+       //            removable.insert(*l);
+       //            break;
+       //        }
+       //    }
+       // }
+       //  clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
         clause
     }
 
     pub fn solve(&mut self) -> Res {
         self.minimize_cur_clause();
+        // self.clauses = self.clauses.iter().unique().collect();
         let mut current_decision_level = 0;
 
         // if let Some(core) = self.propagation(current_decision_level) {
@@ -320,7 +322,9 @@ impl CDCLSolver {
                 }
             }
         }
-        println!("{:?}", self.propagation());
+        // println!("{:?}", self.propagation());
+        // println!("Assignment: {}/{}; freq: {}", self.assignments.len(), self.ids.len()
+        //          , self.frequency.len());
         assert!(self.fully_assign());
         SAT
     }
@@ -379,7 +383,7 @@ impl CDCLSolver {
                     .literals
                     .iter()
                     .filter_map(|l| self.assignments.get(&l.id).filter(|a| a.value != l.value))
-                    .dedup()
+                    .unique()
                     .collect();
                 // .filter(|l| l.value != ).collect();
                 if unresolved.len() == 1 && diff.len() + 1 == c.len() {
@@ -388,8 +392,8 @@ impl CDCLSolver {
                     None
                 }
             })
+            .unique()
             .collect();
-        units.dedup();
         // units.truncate(1);
         PropogationResult::Unit(units)
     }

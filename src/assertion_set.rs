@@ -22,7 +22,7 @@ impl AssertionSet {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Eq, PartialEq)]
 pub struct Clause {
     pub(crate) literals: HashSet<Literal>,
 }
