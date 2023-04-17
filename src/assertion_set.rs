@@ -1,6 +1,6 @@
 use crate::get_id;
 use smt2parser::concrete::{Sort, Symbol};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::slice::Iter;
 
@@ -24,7 +24,7 @@ impl AssertionSet {
 
 #[derive(Default, Clone)]
 pub struct Clause {
-    pub(crate) literals: Vec<Literal>,
+    pub(crate) literals: HashSet<Literal>,
 }
 
 impl Display for Clause {
@@ -35,7 +35,9 @@ impl Display for Clause {
 
 impl Clause {
     pub fn new(literals: Vec<Literal>) -> Self {
-        Self { literals }
+        Self {
+            literals: HashSet::from_iter(literals)
+        }
     }
     pub fn len(&self) -> usize {
         self.literals.len()
@@ -43,12 +45,12 @@ impl Clause {
 
     pub fn display(&self, ids: &[usize]) -> Self {
         let mut new = self.clone();
-        new.literals.iter_mut().for_each(|l| l.id = ids[l.id]);
+        new.literals = new.literals.iter().map(|l| {
+            let mut new_l = l.clone();
+            new_l.id = ids[l.id];
+            new_l
+        }).collect();
         new
-    }
-
-    pub fn dedup(&mut self) {
-        self.literals.dedup();
     }
 }
 

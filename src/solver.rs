@@ -91,14 +91,16 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
         .collect();
     clauses
         .iter_mut()
-        .map(|c| {
-            c.dedup();
-            c.literals.iter_mut()
-        })
-        .flatten()
-        .for_each(|l| {
-            l.id = *id_to_rank.get(&l.id).unwrap();
+        .for_each(|c| {
+            c.literals = c.literals.iter().map(|l|
+                {
+                    let mut new_l = l.clone();
+                    new_l.id = ids[l.id];
+                    new_l
+                }
+            ).collect();
         });
+
     (ids, clauses)
 }
 
@@ -238,9 +240,8 @@ impl CDCLSolver {
                         conflict_clause
                             .iter()
                             .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
-                        self.clauses.push(Clause {
-                            literals: conflict_clause,
-                        });
+                        self.clauses.push(Clause::new(conflict_clause)
+                        );
                         let mut root_levels: Vec<_> = roots
                             .iter()
                             .map(|&r| self.assignments[&r].decision_level)
