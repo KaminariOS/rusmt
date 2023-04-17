@@ -89,17 +89,17 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
         .enumerate()
         .map(|(rank, id)| (*id, rank))
         .collect();
-    clauses
-        .iter_mut()
-        .for_each(|c| {
-            c.literals = c.literals.iter().map(|l|
-                {
-                    let mut new_l = l.clone();
-                    new_l.id = id_to_rank[&l.id];
-                    new_l
-                }
-            ).collect();
-        });
+    clauses.iter_mut().for_each(|c| {
+        c.literals = c
+            .literals
+            .iter()
+            .map(|l| {
+                let mut new_l = l.clone();
+                new_l.id = id_to_rank[&l.id];
+                new_l
+            })
+            .collect();
+    });
 
     (ids, clauses)
 }
@@ -165,20 +165,22 @@ impl CDCLSolver {
 // }
 
 pub fn find_contradiction(clauses: &[Clause]) -> Option<Res> {
-    let mut res = if clauses.iter().any(|c|
-        {
-            c.len() == 2 && c.literals.iter().any(|l| c.literals.contains(&l.not()))
-        }
-    ) {
+    let mut res = if clauses
+        .iter()
+        .any(|c| c.len() == 2 && c.literals.iter().any(|l| c.literals.contains(&l.not())))
+    {
         Some(UNSAT)
-    } else {None};
+    } else {
+        None
+    };
     if res.is_none() {
-        let set: HashSet<_> = clauses.iter()
+        let set: HashSet<_> = clauses
+            .iter()
             .filter(|c| c.len() == 1)
             .map(|c| c.literals.iter())
             .flatten()
             .collect();
-         if set.iter().any(|l| set.contains(&l.not())) {
+        if set.iter().any(|l| set.contains(&l.not())) {
             res = Some(UNSAT)
         }
     }
@@ -190,69 +192,76 @@ pub fn remove_unary(mut clauses: Vec<Clause>) -> (Option<Res>, Vec<Clause>) {
     loop {
         let res = find_contradiction(&clauses);
         if res.is_some() {
-            return (res, vec![])
+            return (res, vec![]);
         }
-        let (unarys, non_unary): (Vec<_>, Vec<_>) = clauses
-            .into_iter().partition(|c| c.len() == 1);
+        let (unarys, non_unary): (Vec<_>, Vec<_>) = clauses.into_iter().partition(|c| c.len() == 1);
 
-        unarys.iter().map(|c|
-           c.literals.iter()
-        ).flatten().for_each(|l| {
-            assert!(!assignments.contains_key(&l.id));
-            assignments.insert(l.id, l.value);
-        });
-        clauses = non_unary.into_iter().filter_map(|mut c|
-            {
+        unarys
+            .iter()
+            .map(|c| c.literals.iter())
+            .flatten()
+            .for_each(|l| {
+                assert!(!assignments.contains_key(&l.id));
+                assignments.insert(l.id, l.value);
+            });
+        clauses = non_unary
+            .into_iter()
+            .filter_map(|mut c| {
                 let mut literals = HashSet::new();
                 for l in &c.literals {
-                if let Some(&value) = assignments.get(&l.id) {
-                    if l.value == value {
-                        return None
+                    if let Some(&value) = assignments.get(&l.id) {
+                        if l.value == value {
+                            return None;
+                        }
+                    } else {
+                        literals.insert(*l);
                     }
-                } else {
-                    literals.insert(*l);
                 }
-            }
                 if literals.is_empty() {
                     None
                 } else {
                     c.literals = literals;
                     Some(c)
                 }
-            }
-        ).collect();
+            })
+            .collect();
         if unarys.is_empty() {
-            return (res, clauses)
+            return (res, clauses);
         }
-
     }
 }
 
 pub fn watch_map(clauses: &Vec<Clause>) -> HashMap<Literal, HashSet<usize>> {
-    let mut map: HashMap<Literal, HashSet<usize>>  = HashMap::new();
-    clauses.iter().enumerate().for_each(|(i, c)|
-        {
-            c.literals.iter().for_each(|l| {
-                map.entry(*l).or_default().insert(i);
-            })
-        }
-    );
+    let mut map: HashMap<Literal, HashSet<usize>> = HashMap::new();
+    clauses.iter().enumerate().for_each(|(i, c)| {
+        c.literals.iter().for_each(|l| {
+            map.entry(*l).or_default().insert(i);
+        })
+    });
     map
 }
 
-fn minimize_cur_clauses(clauses: &[Clause], watch_map: &HashMap<Literal, HashSet<usize>>) -> Vec<Clause> {
-    clauses.iter().filter_map(|c| {
-        let new_c = clause_minimization(c.clone(), clauses, watch_map);
-        if new_c.literals.is_empty() {
-            None
-        } else {
-            Some(new_c)
-        }
-    }).collect()
+fn minimize_cur_clauses(
+    clauses: &[Clause],
+    watch_map: &HashMap<Literal, HashSet<usize>>,
+) -> Vec<Clause> {
+    clauses
+        .iter()
+        .filter_map(|c| {
+            let new_c = clause_minimization(c.clone(), clauses, watch_map);
+            if new_c.literals.is_empty() {
+                None
+            } else {
+                Some(new_c)
+            }
+        })
+        .collect()
 }
 
-fn clause_minimization(mut clause: Clause, clauses: &[Clause],
-                       watch_map: &HashMap<Literal, HashSet<usize>>,
+fn clause_minimization(
+    mut clause: Clause,
+    clauses: &[Clause],
+    watch_map: &HashMap<Literal, HashSet<usize>>,
 ) -> Clause {
     let mut removable = HashSet::with_capacity(clause.len());
     for l in clause.literals.iter() {
@@ -260,9 +269,11 @@ fn clause_minimization(mut clause: Clause, clauses: &[Clause],
         if let Some(map) = watch_map.get(&not_l) {
             for &c_index in map {
                 let c = &clauses[c_index];
-                if c.literals.iter()
+                if c.literals
+                    .iter()
                     .filter(|&&nl| nl != not_l)
-                    .all(|nl| clause.literals.contains(nl)) {
+                    .all(|nl| clause.literals.contains(nl))
+                {
                     removable.insert(*l);
                     break;
                 }
@@ -277,7 +288,7 @@ fn clause_minimization(mut clause: Clause, clauses: &[Clause],
 impl CDCLSolver {
     pub fn new(clauses: Vec<Clause>) -> Self {
         info!("Initial clauses: {}", clauses.len());
-        let (res, mut clauses) = remove_unary(clauses);
+        let (res, clauses) = remove_unary(clauses);
         let (ids, mut clauses) = rename(clauses);
         info!("Clauses after removing unary: {}", clauses.len());
         if res.is_none() {
@@ -320,15 +331,11 @@ impl CDCLSolver {
         None
     }
 
-
-
-
-
     pub fn solve(&mut self) -> Res {
         // self.minimize_cur_clause();
         // self.clauses = self.clauses.iter().unique().collect();
         if let Some(res) = &self.res {
-            return *res
+            return *res;
         }
         let mut current_decision_level = 0;
 
@@ -342,71 +349,70 @@ impl CDCLSolver {
                 Assignment::new(cur.value, None, current_decision_level),
             );
             loop {
-                    if let Some(core) = self.propagation(current_decision_level)
-                    {
-                        info!("conflict: {}; len: {}", core, self.clauses.len());
-                        let mut roots = HashSet::new();
-                        let mut visited = HashSet::new();
-                        self.collect_roots(&mut roots, core, &mut visited);
-                        let conflict_clause: Vec<_> = roots
+                if let Some(core) = self.propagation(current_decision_level) {
+                    info!("conflict: {}; len: {}", core, self.clauses.len());
+                    let mut roots = HashSet::new();
+                    let mut visited = HashSet::new();
+                    self.collect_roots(&mut roots, core, &mut visited);
+                    let conflict_clause: Vec<_> = roots
+                        .iter()
+                        .map(|&r| Literal {
+                            value: !self.assignments[&r].value,
+                            id: r,
+                        })
+                        .collect();
+                    let conflict_clause = Clause::new(conflict_clause);
+                    // conflict_clause = self.clause_minimization(conflict_clause);
+                    if !conflict_clause.is_empty() {
+                        conflict_clause
+                            .literals
                             .iter()
-                            .map(|&r| Literal {
-                                value: !self.assignments[&r].value,
-                                id: r,
-                            })
-                            .collect();
-                        let mut conflict_clause = Clause::new(conflict_clause);
-                        // conflict_clause = self.clause_minimization(conflict_clause);
-                        if !conflict_clause.is_empty() {
-                            conflict_clause
-                                .literals
-                                .iter()
-                                .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
-                            self.clauses.push(conflict_clause);
-                        }
-                        let mut root_levels: Vec<_> = roots
-                            .iter()
-                            .map(|&r| self.assignments[&r].decision_level)
-                            .collect();
-                        root_levels.sort();
-                        let mut backtrack_decision_level = None;
-                        while let Some(highest_level) = root_levels.pop() {
-                            let highest_conflict_decision = self.decision_nodes[highest_level];
-                            let decision_node = self
-                                .assignments
-                                .get_mut(&highest_conflict_decision)
-                                .unwrap();
-                            if decision_node.value == cur.value {
-                                backtrack_decision_level = Some(highest_level);
-                                break;
-                            }
-                        }
-                        if let Some(back) = backtrack_decision_level {
-                            current_decision_level = back;
-                        } else {
-                            return UNSAT;
-                        }
-                        let tobe_removed: Vec<_> = self
+                            .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
+                        self.clauses.push(conflict_clause);
+                    }
+                    let mut root_levels: Vec<_> = roots
+                        .iter()
+                        .map(|&r| self.assignments[&r].decision_level)
+                        .collect();
+                    root_levels.sort();
+                    let mut backtrack_decision_level = None;
+                    while let Some(highest_level) = root_levels.pop() {
+                        let highest_conflict_decision = self.decision_nodes[highest_level];
+                        let decision_node = self
                             .assignments
-                            .iter()
-                            .filter(|(_, a)| a.decision_level >= current_decision_level)
-                            .map(|(i, _)| *i)
-                            .collect();
-                        tobe_removed.into_iter().for_each(|i| {
-                            self.assignments.remove(&i);
-                        });
-                        self.assignments.insert(
-                            self.decision_nodes[current_decision_level],
-                            Assignment {
-                                value: !cur.value,
-                                clause: None,
-                                decision_level: current_decision_level,
-                            },
-                        );
-                        self.decision_nodes =
-                            self.decision_nodes[0..=current_decision_level].to_vec();
+                            .get_mut(&highest_conflict_decision)
+                            .unwrap();
+                        if decision_node.value == cur.value {
+                            backtrack_decision_level = Some(highest_level);
+                            break;
+                        }
+                    }
+                    if let Some(back) = backtrack_decision_level {
+                        current_decision_level = back;
+                    } else {
+                        return UNSAT;
+                    }
+                    let tobe_removed: Vec<_> = self
+                        .assignments
+                        .iter()
+                        .filter(|(_, a)| a.decision_level >= current_decision_level)
+                        .map(|(i, _)| *i)
+                        .collect();
+                    tobe_removed.into_iter().for_each(|i| {
+                        self.assignments.remove(&i);
+                    });
+                    self.assignments.insert(
+                        self.decision_nodes[current_decision_level],
+                        Assignment {
+                            value: !cur.value,
+                            clause: None,
+                            decision_level: current_decision_level,
+                        },
+                    );
+                    self.decision_nodes = self.decision_nodes[0..=current_decision_level].to_vec();
+                } else {
+                    break;
                 }
-                else {break}
             }
         }
         // println!("{:?}", self.propagation());
@@ -416,7 +422,12 @@ impl CDCLSolver {
         SAT
     }
 
-    pub fn collect_roots(&self, roots: &mut HashSet<usize>, clause: usize, visited: &mut HashSet<usize>){
+    pub fn collect_roots(
+        &self,
+        roots: &mut HashSet<usize>,
+        clause: usize,
+        visited: &mut HashSet<usize>,
+    ) {
         if visited.contains(&clause) {
             return;
         }
@@ -424,7 +435,7 @@ impl CDCLSolver {
             .literals
             .iter()
             .filter_map(|l| {
-                 if let Some(c) = self.assignments[&l.id].clause {
+                if let Some(c) = self.assignments[&l.id].clause {
                     if c != clause {
                         Some(c)
                     } else {
@@ -437,7 +448,8 @@ impl CDCLSolver {
             })
             .collect();
         visited.insert(clause);
-        next.into_iter().for_each(|n| self.collect_roots(roots, n, visited));
+        next.into_iter()
+            .for_each(|n| self.collect_roots(roots, n, visited));
     }
 
     pub fn propagation(&mut self, current_decision_level: usize) -> Option<usize> {
@@ -482,7 +494,7 @@ impl CDCLSolver {
                 .unique()
                 .collect();
             if units.is_empty() {
-                return None
+                return None;
             }
 
             units.into_iter().for_each(|(l, i)| {

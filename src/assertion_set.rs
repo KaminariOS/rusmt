@@ -36,7 +36,7 @@ impl Display for Clause {
 impl Clause {
     pub fn new(literals: Vec<Literal>) -> Self {
         Self {
-            literals: HashSet::from_iter(literals)
+            literals: HashSet::from_iter(literals),
         }
     }
     pub fn len(&self) -> usize {
@@ -45,11 +45,15 @@ impl Clause {
 
     pub fn display(&self, ids: &[usize]) -> Self {
         let mut new = self.clone();
-        new.literals = new.literals.iter().map(|l| {
-            let mut new_l = l.clone();
-            new_l.id = ids[l.id];
-            new_l
-        }).collect();
+        new.literals = new
+            .literals
+            .iter()
+            .map(|l| {
+                let mut new_l = l.clone();
+                new_l.id = ids[l.id];
+                new_l
+            })
+            .collect();
         new
     }
 
