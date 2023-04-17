@@ -52,7 +52,7 @@ impl Clause {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Literal {
     pub(crate) value: bool,
     pub(crate) id: usize

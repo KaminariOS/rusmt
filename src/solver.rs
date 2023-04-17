@@ -124,7 +124,7 @@ pub struct CDCLSolver {
     pub clauses: Vec<Clause>,
     assignments: HashMap<usize, Assignment>,
     decision_nodes: Vec<usize>,
-    frequency: HashMap<usize, usize>,
+    frequency: HashMap<Literal, usize>,
 }
 
 // pub fn preprocess(clauses: Vec<Clause>, assignments:&mut Vec<Option<Assignment>>) -> Vec<Clause> {
@@ -153,9 +153,9 @@ impl CDCLSolver {
         let (ids, clauses) = rename(clause);
         let len = ids.len();
         let assignments= HashMap::with_capacity(len);
-        let mut frequency: HashMap<usize, usize> =  HashMap::with_capacity(len);
+        let mut frequency: HashMap<Literal, usize> =  HashMap::with_capacity(len);
         clauses.iter().map(|c| c.literals.iter()).flatten().for_each(|l|
-            *frequency.entry(l.id).or_default() += 1
+            *frequency.entry(*l).or_default() += 1
         );
         // let clauses = preprocess(clauses, &mut assignments);
         Self {
@@ -171,12 +171,12 @@ impl CDCLSolver {
         self.assignments.len() == self.ids.len()
     }
 
-    pub fn get_next(&self) -> Option<usize> {
+    pub fn get_next(&self) -> Option<Literal> {
         let mut freq: Vec<_> = self.frequency.iter().collect();
         freq.sort_by_key(|x| x.1);
-        while let Some((id, _)) = freq.pop() {
-            if !self.assignments.contains_key(id) {
-                return Some(*id)
+        while let Some((l, _)) = freq.pop() {
+            if !self.assignments.contains_key(&l.id) {
+                return Some(*l)
             }
         }
         None
@@ -184,19 +184,17 @@ impl CDCLSolver {
 
     pub fn solve(&mut self) -> Res {
         let mut current_decision_level = 0;
-        let mut current_variable = 0;
-        let total_variable = self.ids.len();
 
         // if let Some(core) = self.propagation(current_decision_level) {
         //     return Res::UNSAT;
         // }
-        while let Some(next) = self.get_next() {
-            current_variable = next;
+        while let Some(cur) = self.get_next() {
+            let current_variable = cur.id;
             current_decision_level += 1;
             self.decision_nodes.push(current_variable);
             assert_eq!(self.decision_nodes.len(), current_decision_level + 1);
             self.assignments.insert(current_variable,
-                                    Assignment::new(false, None, current_decision_level)
+                                    Assignment::new(cur.value, None, current_decision_level)
             );
             loop {
                 match self.propagation() {
@@ -230,7 +228,7 @@ impl CDCLSolver {
                             }
                         ).collect();
                         conflict_clause.iter().for_each(|l|
-                            *self.frequency.entry(l.id).or_default() += 1
+                            *self.frequency.entry(*l).or_default() += 1
                         );
                         self.clauses.push(Clause { literals: conflict_clause });
                         let mut root_levels: Vec<_> = roots.iter().map(|&r| self.assignments[&r].decision_level).collect();
@@ -239,7 +237,7 @@ impl CDCLSolver {
                         while let Some(highest_level) = root_levels.pop() {
                             let highest_conflict_decision = self.decision_nodes[highest_level];
                             let decision_node = self.assignments.get_mut(&highest_conflict_decision).unwrap();
-                            if !decision_node.value {
+                            if decision_node.value == cur.value {
                                 backtrack_decision_level = Some(highest_level);
                                 break;
                             }
@@ -261,7 +259,7 @@ impl CDCLSolver {
                                 .remove(&i);
                         });
                         self.assignments.insert(self.decision_nodes[current_decision_level], Assignment {
-                            value: true,
+                            value: !cur.value,
                             clause: None,
                             decision_level: current_decision_level,
                         });
