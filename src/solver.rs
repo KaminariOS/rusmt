@@ -225,9 +225,6 @@ impl CDCLSolver {
         // self.clauses = self.clauses.iter().unique().collect();
         let mut current_decision_level = 0;
 
-        // if let Some(core) = self.propagation(current_decision_level) {
-        //     return Res::UNSAT;
-        // }
         while let Some(cur) = self.get_next() {
             let current_variable = cur.id;
             current_decision_level += 1;
@@ -238,25 +235,8 @@ impl CDCLSolver {
                 Assignment::new(cur.value, None, current_decision_level),
             );
             loop {
-                match self.propagation() {
-                    PropogationResult::Unit(literals) => {
-                        if literals.is_empty() {
-                            break;
-                        }
-                        literals.into_iter().for_each(|(l, i)| {
-                            // assert!(self.assignments[l.id].is_none());
-                            self.assignments.insert(
-                                l.id,
-                                Assignment {
-                                    value: l.value,
-                                    clause: Some(i),
-                                    decision_level: current_decision_level,
-                                },
-                            );
-                        });
-                        // info!("Unit: {}; level: {}", id, current_decision_level)
-                    }
-                    PropogationResult::Conflict(core) => {
+                    if let Some(core) = self.propagation(current_decision_level)
+                    {
                         info!("conflict: {}; len: {}", core, self.clauses.len());
                         let mut roots = HashSet::new();
                         let mut visited = HashSet::new();
@@ -318,8 +298,8 @@ impl CDCLSolver {
                         );
                         self.decision_nodes =
                             self.decision_nodes[0..=current_decision_level].to_vec();
-                    }
                 }
+                else {break}
             }
         }
         // println!("{:?}", self.propagation());
@@ -353,48 +333,62 @@ impl CDCLSolver {
         next.into_iter().for_each(|n| self.collect_roots(roots, n, visited));
     }
 
-    pub fn propagation(&mut self) -> PropogationResult {
+    pub fn propagation(&mut self, current_decision_level: usize) -> Option<usize> {
         let c_len = self.clauses.len();
-        for index in 0..c_len {
-            let conflict = !self.clauses[index].literals.iter().any(|i| {
-                self.assignments
-                    .get(&i.id)
-                    .map(|a| a.value == i.value)
-                    .unwrap_or(true)
-            });
-            if conflict {
-                return PropogationResult::Conflict(index);
-            }
-        }
-
-        let mut units: Vec<_> = self
-            .clauses
-            .iter()
-            .enumerate()
-            // .par_bridge()
-            .filter_map(|(i, c)| {
-                let unresolved: Vec<_> = c
-                    .literals
-                    .iter()
-                    .filter(|l| !self.assignments.contains_key(&l.id))
-                    .collect();
-
-                let diff: Vec<_> = c
-                    .literals
-                    .iter()
-                    .filter_map(|l| self.assignments.get(&l.id).filter(|a| a.value != l.value))
-                    .unique()
-                    .collect();
-                // .filter(|l| l.value != ).collect();
-                if unresolved.len() == 1 && diff.len() + 1 == c.len() {
-                    Some((*unresolved[0], i))
-                } else {
-                    None
+        loop {
+            for index in 0..c_len {
+                let conflict = !self.clauses[index].literals.iter().any(|i| {
+                    self.assignments
+                        .get(&i.id)
+                        .map(|a| a.value == i.value)
+                        .unwrap_or(true)
+                });
+                if conflict {
+                    return Some(index);
                 }
-            })
-            .unique()
-            .collect();
-        // units.truncate(1);
-        PropogationResult::Unit(units)
+            }
+
+            let units: Vec<_> = self
+                .clauses
+                .iter()
+                .enumerate()
+                .filter_map(|(i, c)| {
+                    let unresolved: Vec<_> = c
+                        .literals
+                        .iter()
+                        .filter(|l| !self.assignments.contains_key(&l.id))
+                        .collect();
+
+                    let diff: Vec<_> = c
+                        .literals
+                        .iter()
+                        .filter_map(|l| self.assignments.get(&l.id).filter(|a| a.value != l.value))
+                        .unique()
+                        .collect();
+                    // .filter(|l| l.value != ).collect();
+                    if unresolved.len() == 1 && diff.len() + 1 == c.len() {
+                        Some((*unresolved[0], i))
+                    } else {
+                        None
+                    }
+                })
+                .unique()
+                .collect();
+            if units.is_empty() {
+                return None
+            }
+
+            units.into_iter().for_each(|(l, i)| {
+                // assert!(self.assignments[l.id].is_none());
+                self.assignments.insert(
+                    l.id,
+                    Assignment {
+                        value: l.value,
+                        clause: Some(i),
+                        decision_level: current_decision_level,
+                    },
+                );
+            });
+        }
     }
 }
