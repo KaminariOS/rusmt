@@ -2,8 +2,7 @@ use crate::assertion_set::{Clause, Literal};
 use crate::solver::Res::{SAT, UNSAT};
 use itertools::Itertools;
 use log::info;
-use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct SATSolver {
     ids: Vec<usize>,
@@ -226,9 +225,8 @@ impl CDCLSolver {
                     }
                     PropogationResult::Conflict(core) => {
                         info!("conflict: {}; len: {}", core, self.clauses.len());
-                        let mut roots = vec![];
+                        let mut roots = HashSet::new();
                         self.collect_roots(&mut roots, core);
-                        roots.dedup();
                         let conflict_clause: Vec<_> = roots
                             .iter()
                             .map(|&r| Literal {
@@ -292,19 +290,22 @@ impl CDCLSolver {
         SAT
     }
 
-    pub fn collect_roots(&self, roots: &mut Vec<usize>, clause: usize) {
+    pub fn collect_roots(&self, roots: &mut HashSet<usize>, clause: usize) {
         let next: Vec<_> = self.clauses[clause]
             .literals
             .iter()
             .filter_map(|l| {
-                if let Some(c) = self.assignments[&l.id].clause {
+                if roots.contains(&l.id) {
+                    None
+                }
+                else if let Some(c) = self.assignments[&l.id].clause {
                     if c != clause {
                         Some(c)
                     } else {
                         None
                     }
                 } else {
-                    roots.push(l.id);
+                    roots.insert(l.id);
                     None
                 }
             })

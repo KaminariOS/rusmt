@@ -51,9 +51,8 @@ fn test() {
         .env("RUST_LOG", "info")
         .output()
         .expect("failed to execute process");
-
-    let output_cdcl = std::str::from_utf8(&output.stdout).unwrap();
     let time = print_duration(start);
+    let output_cdcl = std::str::from_utf8(&output.stdout).unwrap();
     let report = format!("{}\n {}", time, output_cdcl);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
