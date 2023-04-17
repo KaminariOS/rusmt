@@ -77,13 +77,13 @@ impl SATSolver {
     }
 }
 pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
-    let ids: HashSet<_> = clauses
+    let mut ids: Vec<_> = clauses
         .iter()
         .map(|c| c.literals.iter())
         .flatten()
+        .dedup()
         .map(|l| l.id).collect();
 
-    let mut ids: Vec<_> = ids.into_iter().collect();
     ids.sort();
     let id_to_rank: HashMap<_, _> = ids.iter().enumerate().map(|(rank, id)| (*id, rank)).collect();
     clauses.iter_mut().map(|c|
