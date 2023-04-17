@@ -204,24 +204,24 @@ impl CDCLSolver {
     }
 
     fn clause_minimization(&self, mut clause: Clause) -> Clause {
-       //  let mut removable = HashSet::with_capacity(clause.len());
-       // for l in clause.literals.iter() {
-       //     let not_l = l.not();
-       //    for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
-       //        if c.literals.iter()
-       //            .filter(|&&nl| nl != not_l)
-       //            .all(|nl| clause.literals.contains(nl)) {
-       //            removable.insert(*l);
-       //            break;
-       //        }
-       //    }
-       // }
-       //  clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
+        let mut removable = HashSet::with_capacity(clause.len());
+       for l in clause.literals.iter() {
+           let not_l = l.not();
+          for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
+              if c.literals.iter()
+                  .filter(|&&nl| nl != not_l)
+                  .all(|nl| clause.literals.contains(nl)) {
+                  removable.insert(*l);
+                  break;
+              }
+          }
+       }
+        clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
         clause
     }
 
     pub fn solve(&mut self) -> Res {
-        self.minimize_cur_clause();
+        // self.minimize_cur_clause();
         // self.clauses = self.clauses.iter().unique().collect();
         let mut current_decision_level = 0;
 
@@ -269,7 +269,7 @@ impl CDCLSolver {
                             })
                             .collect();
                         let mut conflict_clause = Clause::new(conflict_clause);
-                        conflict_clause = self.clause_minimization(conflict_clause);
+                        // conflict_clause = self.clause_minimization(conflict_clause);
                         if !conflict_clause.is_empty() {
                             conflict_clause
                                 .literals
