@@ -30,7 +30,7 @@ fn main() {
         Solver::CDCL => {
             let mut cdcl_solver = CDCLSolver::new(context.get_clauses());
 
-            println!("res: {}", cdcl_solver.solve());
+            println!("{}", cdcl_solver.solve());
             info!("Clauses length: {}", cdcl_solver.clauses.len());
             // info!("assignment = {:?}",
     //         cdcl_solver.get_assignments()

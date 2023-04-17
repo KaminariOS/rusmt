@@ -1,7 +1,8 @@
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
+use crate::solver::Res;
 use crate::test::generator::Generator;
 
 fn print_duration(time: Instant) -> String {
@@ -22,25 +23,25 @@ fn test() {
         eprintln!("Build failure.");
     }
     let generator = Generator {
-        variables: 100,
-        clauses: 1000,
+        variables: 200,
+        clauses: 2000,
     };
     let test_file = "random.smtlib";
     generator.generate(test_file);
 
     let mut logfile = File::create("test.log").unwrap();
 
-    let start = Instant::now();
-    let output = Command::new("./target/release/rusmt")
-        .args(["BRUTE", test_file])
-        .env("RUST_LOG", "info")
-        .output()
-        .expect("failed to execute process");
-    let time = print_duration(start);
-    let txt = std::str::from_utf8(&output.stdout).unwrap();
-    let report = format!("{}\n {}", time, txt);
-    println!("{}", report);
-    writeln!(logfile, "{}", report).unwrap();
+    // let start = Instant::now();
+    // let output = Command::new("./target/release/rusmt")
+    //     .args(["BRUTE", test_file])
+    //     .env("RUST_LOG", "info")
+    //     .output()
+    //     .expect("failed to execute process");
+    // let time = print_duration(start);
+    // let txt = std::str::from_utf8(&output.stdout).unwrap();
+    // let report = format!("{}\n {}", time, txt);
+    // println!("{}", report);
+    // writeln!(logfile, "{}", report).unwrap();
 
     let start = Instant::now();
     let output = Command::new("./target/release/rusmt")
@@ -48,9 +49,10 @@ fn test() {
         .env("RUST_LOG", "info")
         .output()
         .expect("failed to execute process");
+
+    let output_cdcl = std::str::from_utf8(&output.stdout).unwrap();
     let time = print_duration(start);
-    let txt = std::str::from_utf8(&output.stdout).unwrap();
-    let report = format!("{}\n {}", time, txt);
+    let report = format!("{}\n {}", time, output_cdcl);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
 
@@ -60,8 +62,13 @@ fn test() {
         .output()
         .expect("failed to execute process");
     let time = print_duration(start);
-    let txt = format!("Using solver: {}\nres: {}", "z3", std::str::from_utf8(&output.stdout).unwrap());
+    let output_z3 = std::str::from_utf8(&output.stdout).unwrap();
+    let txt = format!("Using solver: {}\nres: {}", "z3", output_z3);
     let report = format!("{}\n {}", time, txt);
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
+    let unsat= Res::UNSAT.as_ref();
+    if output_z3.contains(unsat) != output_cdcl.contains(unsat) {
+        panic!("Incorrect.")
+    }
 }
