@@ -95,7 +95,7 @@ pub fn rename(mut clauses: Vec<Clause>) -> (Vec<usize>, Vec<Clause>) {
             c.literals = c.literals.iter().map(|l|
                 {
                     let mut new_l = l.clone();
-                    new_l.id = ids[l.id];
+                    new_l.id = id_to_rank[&l.id];
                     new_l
                 }
             ).collect();
@@ -191,7 +191,36 @@ impl CDCLSolver {
         None
     }
 
+    fn minimize_cur_clause(&mut self) {
+        self.clauses = self.clauses.iter().filter_map(|c| {
+            let new_c = self.clause_minimization(c.clone());
+            if new_c.literals.is_empty() {
+                None
+            } else {
+               Some(new_c)
+            }
+        }).collect();
+    }
+
+    fn clause_minimization(&self, mut clause: Clause) -> Clause {
+        let mut removable = HashSet::with_capacity(clause.len());
+       for l in clause.literals.iter() {
+           let not_l = l.not();
+          for c in self.clauses.iter().filter(|c| c.literals.contains(&not_l)) {
+              if c.literals.iter()
+                  .filter(|&&nl| nl != not_l)
+                  .all(|nl| clause.literals.contains(nl)) {
+                  removable.insert(*l);
+                  break;
+              }
+          }
+       }
+        clause.literals = clause.literals.difference(&removable).map(|x| *x).collect();
+        clause
+    }
+
     pub fn solve(&mut self) -> Res {
+        self.minimize_cur_clause();
         let mut current_decision_level = 0;
 
         // if let Some(core) = self.propagation(current_decision_level) {
@@ -237,11 +266,15 @@ impl CDCLSolver {
                                 id: r,
                             })
                             .collect();
-                        conflict_clause
-                            .iter()
-                            .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
-                        self.clauses.push(Clause::new(conflict_clause)
-                        );
+                        let mut conflict_clause = Clause::new(conflict_clause);
+                        conflict_clause = self.clause_minimization(conflict_clause);
+                        if !conflict_clause.is_empty() {
+                            conflict_clause
+                                .literals
+                                .iter()
+                                .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
+                            self.clauses.push(conflict_clause);
+                        }
                         let mut root_levels: Vec<_> = roots
                             .iter()
                             .map(|&r| self.assignments[&r].decision_level)

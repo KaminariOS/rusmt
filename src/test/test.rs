@@ -25,8 +25,8 @@ fn test() {
         eprintln!("Build failure.");
     }
     let generator = Generator {
-        variables: 200,
-        clauses: 2000,
+        variables: 400,
+        clauses: 4000,
     };
     let test_file = "random.smtlib";
     generator.generate(test_file);

@@ -52,6 +52,10 @@ impl Clause {
         }).collect();
         new
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.literals.is_empty()
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
