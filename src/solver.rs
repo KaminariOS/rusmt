@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use itertools::Itertools;
 use log::info;
-// use rayon::prelude::*;
+use rayon::prelude::*;
 use crate::assertion_set::{Clause, Literal};
 use crate::solver::Res::{SAT, UNSAT};
 
@@ -124,6 +124,7 @@ pub struct CDCLSolver {
     pub clauses: Vec<Clause>,
     assignments: HashMap<usize, Assignment>,
     decision_nodes: Vec<usize>,
+    frequency: HashMap<usize, usize>,
 }
 
 // pub fn preprocess(clauses: Vec<Clause>, assignments:&mut Vec<Option<Assignment>>) -> Vec<Clause> {
@@ -152,17 +153,33 @@ impl CDCLSolver {
         let (ids, clauses) = rename(clause);
         let len = ids.len();
         let assignments= HashMap::with_capacity(len);
+        let mut frequency: HashMap<usize, usize> =  HashMap::with_capacity(len);
+        clauses.iter().map(|c| c.literals.iter()).flatten().for_each(|l|
+            *frequency.entry(l.id).or_default() += 1
+        );
         // let clauses = preprocess(clauses, &mut assignments);
         Self {
             ids,
             clauses,
             assignments,
             decision_nodes: vec![0],
+            frequency
         }
     }
 
     pub fn fully_assign(&self) -> bool {
         self.assignments.len() == self.ids.len()
+    }
+
+    pub fn get_next(&self) -> Option<usize> {
+        let mut freq: Vec<_> = self.frequency.iter().collect();
+        freq.sort_by_key(|x| x.1);
+        while let Some((id, _)) = freq.pop() {
+            if !self.assignments.contains_key(id) {
+                return Some(*id)
+            }
+        }
+        None
     }
 
     pub fn solve(&mut self) -> Res {
@@ -173,11 +190,8 @@ impl CDCLSolver {
         // if let Some(core) = self.propagation(current_decision_level) {
         //     return Res::UNSAT;
         // }
-        while !self.fully_assign() {
-            if self.assignments.contains_key(&current_variable) {
-                current_variable = (current_variable + 1) % total_variable;
-                continue;
-            }
+        while let Some(next) = self.get_next() {
+            current_variable = next;
             current_decision_level += 1;
             self.decision_nodes.push(current_variable);
             assert_eq!(self.decision_nodes.len(), current_decision_level + 1);
@@ -215,6 +229,9 @@ impl CDCLSolver {
                                 }
                             }
                         ).collect();
+                        conflict_clause.iter().for_each(|l|
+                            *self.frequency.entry(l.id).or_default() += 1
+                        );
                         self.clauses.push(Clause { literals: conflict_clause });
                         let mut root_levels: Vec<_> = roots.iter().map(|&r| self.assignments[&r].decision_level).collect();
                         root_levels.sort();
@@ -232,19 +249,6 @@ impl CDCLSolver {
                         } else {
                             return UNSAT
                         }
-                        // {
-                        //     info!("Decision node: {:?}", decision_node);
-                        //     if decision_node.value {
-                        //         if highest_level == 1 {
-                        //             return UNSAT
-                        //         } else {
-                        //             current_decision_level = highest_level - 1;
-                        //         }
-                        //     } else {
-                        //         decision_node.value = true;
-                        //         current_decision_level = highest_level;
-                        //     }
-                        // }
                         let tobe_removed: Vec<_> = self.assignments
                             .iter()
                             .filter(|(_, a)|
