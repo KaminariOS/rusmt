@@ -31,7 +31,8 @@ fn main() {
             let mut cdcl_solver = CDCLSolver::new(context.get_clauses());
 
             println!("{}", cdcl_solver.solve());
-            info!("End clauses length: {}", cdcl_solver.clauses.len());
+            // println!("ids: {}; freq: {}", ids.len(), frequency.len());
+            println!("End clauses length: {}", cdcl_solver.clauses.len());
             // info!("assignment = {:?}",
             //         cdcl_solver.get_assignments()
             // );

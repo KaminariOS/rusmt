@@ -132,6 +132,7 @@ pub struct CDCLSolver {
     decision_nodes: Vec<usize>,
     frequency: HashMap<Literal, usize>,
     res: Option<Res>,
+    watcher: HashMap<Literal, HashSet<usize>>
 }
 
 // pub fn preprocess(clauses: Vec<Clause>, assignments:&mut Vec<Option<Assignment>>) -> Vec<Clause> {
@@ -287,24 +288,24 @@ fn clause_minimization(
 
 impl CDCLSolver {
     pub fn new(clauses: Vec<Clause>) -> Self {
-        info!("Initial clauses: {}", clauses.len());
-        let (res, clauses) = remove_unary(clauses);
-        let (ids, mut clauses) = rename(clauses);
-        info!("Clauses after removing unary: {}", clauses.len());
+        println!("Initial clauses: {}", clauses.len());
+        let (res, mut clauses) = remove_unary(clauses);
+        println!("Clauses after removing unary: {}", clauses.len());
         if res.is_none() {
             let watch_list = watch_map(&clauses);
             clauses = minimize_cur_clauses(&clauses, &watch_list);
-            info!("Clauses after minimization: {}", clauses.len());
+            println!("Clauses after minimization: {}", clauses.len());
         }
+        let (ids, mut clauses) = rename(clauses);
         let len = ids.len();
         let assignments = HashMap::with_capacity(len);
         let mut frequency: HashMap<Literal, usize> = HashMap::with_capacity(len);
+        let watcher = watch_map(&clauses);
         clauses
             .iter()
             .map(|c| c.literals.iter())
             .flatten()
             .for_each(|l| *frequency.entry(*l).or_default() += 1);
-        println!("ids: {}; freq: {}", ids.len(), frequency.len());
         // let clauses = preprocess(clauses, &mut assignments);
         Self {
             ids,
@@ -313,6 +314,7 @@ impl CDCLSolver {
             decision_nodes: vec![0],
             frequency,
             res,
+            watcher,
         }
     }
 
@@ -321,12 +323,12 @@ impl CDCLSolver {
     }
 
     pub fn get_next(&self) -> Option<Literal> {
-        let mut freq: Vec<_> = self.frequency.iter().collect();
+        let mut freq: Vec<_> = self.frequency.iter()
+            .filter(|(l, _)| !self.assignments.contains_key(&l.id))
+            .collect();
         freq.sort_by_key(|x| (x.1, x.0.id, x.0.value));
-        while let Some((l, _)) = freq.pop() {
-            if !self.assignments.contains_key(&l.id) {
+        if let Some((l, _)) = freq.pop() {
                 return Some(*l);
-            }
         }
         None
     }
@@ -367,7 +369,11 @@ impl CDCLSolver {
                         conflict_clause
                             .literals
                             .iter()
-                            .for_each(|l| *self.frequency.entry(*l).or_default() += 1);
+                            .for_each(|l| {
+                                *self.frequency.entry(*l).or_default() += 1;
+                                let len = self.clauses.len();
+                                self.watcher.get_mut(l).unwrap().insert(len);
+                            });
                         self.clauses.push(conflict_clause);
                     }
                     let mut root_levels: Vec<_> = roots
@@ -395,7 +401,7 @@ impl CDCLSolver {
                     let tobe_removed: Vec<_> = self
                         .assignments
                         .iter()
-                        .filter(|(_, a)| a.decision_level >= current_decision_level)
+                        .filter(|(_, a)| a.decision_level < current_decision_level)
                         .map(|(i, _)| *i)
                         .collect();
                     tobe_removed.into_iter().for_each(|i| {
@@ -471,6 +477,7 @@ impl CDCLSolver {
                 .clauses
                 .iter()
                 .enumerate()
+                // .par_bridge()
                 .filter_map(|(i, c)| {
                     let unresolved: Vec<_> = c
                         .literals
@@ -491,13 +498,14 @@ impl CDCLSolver {
                         None
                     }
                 })
-                .unique()
                 .collect();
             if units.is_empty() {
                 return None;
             }
 
-            units.into_iter().for_each(|(l, i)| {
+            units.into_iter()
+                // .unique()
+                .for_each(|(l, i)| {
                 // assert!(self.assignments[l.id].is_none());
                 self.assignments.insert(
                     l.id,

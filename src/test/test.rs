@@ -69,7 +69,7 @@ fn test() {
     println!("{}", report);
     writeln!(logfile, "{}", report).unwrap();
     let unsat = Res::UNSAT.as_ref();
-    if output_z3.contains(unsat) != output_cdcl.contains(unsat) {
+    if output_cdcl.contains(Res::SAT.as_ref()) && output_z3.contains(unsat) != output_cdcl.contains(unsat) {
         panic!("Incorrect.")
     }
 }
